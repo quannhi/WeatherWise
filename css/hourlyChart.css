@@ -1,0 +1,246 @@
+:root {
+    /* base sizing (change these if you want different heights) */
+    --hourly-height: 30vh;
+    /* hourly panel height */
+    --daily-mult: 1.4;
+    /* daily height = hourly * daily-mult */
+    --hourly-open-offset: calc(6vh + 40px);
+    /* used by JS as visual offset */
+    --daily-gap: 12px;
+    --panel-transition: transform 340ms cubic-bezier(.2, .9, .2, 1);
+    --blur-strength: 6px;
+}
+/* css/hourlyChart.css */
+.ww-hourly-root {
+    position: fixed;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -110%);
+    /* hidden above screen; module toggles .ww-hourly-open on this element */
+    width: 80vw;
+    max-width: 1100px;
+    z-index: 150;
+    pointer-events: none;
+    /* root itself doesn't accept pointer, children do */
+}
+
+/* when open we move into viewport */
+.ww-hourly-root.ww-hourly-open {
+    transform: translate(-50%, 6vh);
+}
+
+/* inner panel that visually contains contents */
+.ww-hourly-panel {
+    position: fixed;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -100%);
+    transition: var(--panel-transition);
+    width: 80vw;
+    max-width: 1100px;
+    height: var(--hourly-height);
+    min-height: 160px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02));
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    pointer-events: auto;
+}
+
+/* daily panel: same height as hourly, but wider */
+.ww-daily-panel {
+    position: fixed;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -100%);
+    transition: var(--panel-transition);
+    width: 80vw;
+    max-width: 1100px;
+    height: calc(var(--hourly-height) * var(--daily-mult));
+    min-height: calc(160px * var(--daily-mult));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02));
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    z-index: 160;
+    /* keep above hourly in stacking so close button sits on top if needed */
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    pointer-events: auto;
+}
+
+/* when panels opened we will apply inline transforms, but keep these classes for fallback */
+.ww-hourly-panel.ww-hourly-open {
+    /* fallback only - real transform applied inline by JS */
+}
+
+.ww-daily-panel.ww-daily-open {
+    /* fallback only */
+}
+
+/* Peek arrow anchored above the panel so it's visible when panel is hidden */
+.ww-peek-arrow {
+    position: absolute;
+    top: -46px;
+    /* sits above the panel when hidden */
+    right: 12px;
+    width: 40px;
+    height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    cursor: pointer;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+/* Peek handle rotates while attached */
+.ww-peek-handle {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 340ms cubic-bezier(.2, .9, .2, 1);
+}
+
+/* rotation for the peek when fully opened */
+.ww-peek-handle.rotated button {
+    transform: rotate(180deg);
+    transition: transform 280ms;
+}
+
+/* close button in panels */
+.ww-panel-close {
+    position: absolute;
+    right: 12px;
+    top: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    z-index: 200;
+    pointer-events: auto;
+    border: none;
+    color: white;
+}
+
+/* blur style applied to visual canvases/stage by JS */
+.ww-blurred {
+    filter: blur(var(--blur-strength));
+    transition: filter 240ms ease;
+}
+
+/* inner layout */
+.ww-hourly-inner {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+}
+
+/* scroll area for hours */
+.ww-hourly-scrollproxy {
+    overflow-x: auto;
+    display: flex;
+    gap: 12px;
+    padding: 8px;
+    align-items: center;
+    pointer-events: auto;
+}
+
+/* SVG wrapper */
+.ww-hourly-svg-wrap {
+    height: 280px;
+    width: 100%;
+    overflow: hidden;
+    /* clip visual overflow - the scroll proxy will allow horizontal movement */
+}
+
+.ww-hourly-svg {
+    display: block;
+    height: 100%;
+    pointer-events: none;
+}
+
+/* chart styles */
+.ww-chart-line {
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: opacity 220ms ease;
+}
+
+.ww-point-rect {
+    fill: #fff;
+    rx: 8;
+    ry: 8;
+}
+
+.ww-point-text {
+    fill: #111;
+    font-weight: 700;
+    font-size: 14px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.ww-hour-label {
+    fill: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+/* night theme variant */
+.ww-hourly-root.ww-hourly-night .ww-hourly-panel {
+    background: linear-gradient(180deg, #130D8B, #0b0a3a);
+    color: #fff;
+}
+
+/* accessibility helper */
+.sr-only {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* small helper to visually identify daily when testing */
+.ww-daily-panel .placeholder {
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 15px;
+    opacity: .9;
+}
+.hour-marker img {
+    width: 108px;
+    /* was 36px */
+    height: 108px;
+    /* was 36px */
+    display: block;
+    margin: 6px auto;
+}

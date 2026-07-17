@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>WeatherWise — Dual Rive + Effects</title>
+
+    <link rel="stylesheet" href="css/effects.css">
+    <link rel="stylesheet" href="css/hourlyChart.css">
+
+    <script> window.SVG_TEMPLATE_PATH = 'assets/templates/hourly-chart.svg'; </script>
+    <script src="config.js"></script>
+    <style>
+        :root {
+            --ww-bg-color: #0077F9;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: var(--ww-bg-color);
+            transition: background-color 600ms ease;
+            overflow: hidden;
+        }
+
+
+        #riveCanvasBg,
+        #riveCanvasTrees,
+        #riveCanvasFg {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        #riveCanvasBg {
+            z-index: 0
+        }
+
+        #riveCanvasTrees {
+            z-index: 5
+        }
+
+        #overlays {
+            position: fixed;
+            inset: 0;
+            z-index: 8;
+            pointer-events: none
+        }
+
+        #riveCanvasFg {
+            z-index: 20;
+            pointer-events: none
+        }
+
+        /* hourly panel */
+        .ww-hourly-root {
+            position: relative
+        }
+
+        .ww-hourly-panel {
+            position: fixed;
+            left: 50%;
+            top: 0;
+            transform: translate(-50%, -100%);
+            transition: transform 380ms cubic-bezier(.2, .9, .2, 1);
+            width: 80vw;
+            max-width: 1100px;
+            height: 30vh;
+            min-height: 160px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02));
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+            z-index: 150;
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            pointer-events: auto
+        }
+
+        .ww-hourly-panel.ww-hourly-open {
+            transform: translate(-50%, calc(6vh + 50px));
+        }
+
+        /* floating peek handle (keeps on-screen) */
+        .ww-peek-handle {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 44px;
+            height: 40px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2201;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 360ms cubic-bezier(.2, .9, .2, 1)
+        }
+
+        .ww-peek-handle.attached {
+            transform: translateX(-50%) translateY(calc(6vh + 50px));
+        }
+
+        .ww-peek-handle button {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-size: 18px;
+            cursor: pointer;
+            width: 100%;
+            height: 100%
+        }
+
+
+        .ww-hourly-inner {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none
+        }
+
+        .hour-marker {
+            display: inline-block;
+            width: 92px;
+            text-align: center;
+            color: #fff;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+            margin: 0 4px
+        }
+
+        .hour-marker img {
+            width: 36px;
+            height: 36px;
+            display: block;
+            margin: 6px auto
+        }
+
+        .hour-marker .time {
+            font-size: 13px;
+            opacity: .85;
+            margin-bottom: 4px
+        }
+
+        .hour-marker .temp {
+            background: white;
+            color: black;
+            border-radius: 8px;
+            padding: 4px 8px;
+            display: inline-block;
+            font-weight: 700;
+            margin-top: 6px
+        }
+
+        .ww-hourly-scrollproxy {
+            overflow-x: auto;
+            display: flex;
+            padding: 8px 4px;
+            pointer-events: auto;
+            height: 100%;
+            align-items: center
+        }
+
+        #controls {
+            position: fixed;
+            left: 12px;
+            top: 12px;
+            z-index: 99999;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
+            backdrop-filter: blur(6px);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto
+        }
+
+        #controls .row {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        #controls input,
+        #controls select {
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.06);
+            color: white;
+            outline: none;
+            min-width: 160px
+        }
+
+        .ww-suggestions {
+            position: absolute;
+            left: 0;
+            top: 100%;
+            margin-top: 6px;
+            width: 100%;
+            max-height: 220px;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 8px;
+            display: none;
+            z-index: 999999
+        }
+
+        .ww-suggestions.show {
+            display: block
+        }
+
+        .ww-suggestion {
+            padding: 8px 10px;
+            cursor: pointer;
+            color: white;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03)
+        }
+
+        #hourlyIframe {
+            display: none
+        }
+    </style>
+
+    <script defer src="https://unpkg.com/@rive-app/canvas"></script>
+</head>
+
+<body>
+    <script src="config.js"></script>
+    <!-- SETTINGS BUTTON & PANEL  -->
+    <div id="ww-settings-root" style="position:fixed; right:12px; top:12px; z-index:999999;">
+        <button id="ww-settings-btn" aria-label="Open settings" title="Settings"
+            style="background:rgba(255,255,255,0.06);border:none;padding:10px;border-radius:10px;color:#fff;cursor:pointer;">
+            ⚙
+        </button>
+    </div>
+
+    <!-- settings panel: hidden by default, slides down when toggled -->
+    <div id="ww-settings-panel" class="ww-settings-panel" aria-hidden="true" role="dialog" aria-label="Settings">
+        <div class="ww-settings-inner">
+            <div class="ww-settings-top">
+                <div class="ww-profile" id="ww-profile">
+                    <div class="ww-pfp-wrap" id="ww-pfp-wrap" title="Change profile photo">
+                        <img id="ww-pfp" src="" alt="Profile" />
+                        <div class="ww-pfp-overlay" id="ww-pfp-overlay">Change</div>
+                    </div>
+                    <div class="ww-profile-meta">
+                        <div id="ww-profile-name">Guest</div>
+                        <div id="ww-profile-email" class="muted">Not signed in</div>
+                    </div>
+                </div>
+                <div class="ww-settings-actions">
+                    <label class="ww-switch">
+                        <input id="ww-units-toggle" type="checkbox" />
+                        <span class="ww-switch-slider"></span>
+                    </label>
+                    <div class="ww-units-label" id="ww-units-label">°C</div>
+                </div>
+            </div>
+
+            <div class="ww-settings-body">
+                <button id="ww-login-btn" class="ww-btn">Sign in with Google</button>
+                <button id="ww-logout-btn" class="ww-btn ww-btn-secondary">Log out</button>
+
+                <div class="ww-history">
+                    <div style="font-weight:600;margin-bottom:6px;">Recent searches</div>
+                    <div id="ww-history-list" class="ww-history-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- top controls -->
+    <div id="controls" role="region" aria-label="Weather controls">
+        <div style="font-weight:600;margin-bottom:6px;">Weather Controls</div>
+
+        <div class="row" style="position:relative;">
+            <label for="ww-search">Search</label>
+            <div style="position:relative;">
+                <input id="ww-search" type="search" placeholder="City or location" />
+                <div id="ww-suggestions" class="ww-suggestions" role="listbox"></div>
+            </div>
+        </div>
+
+        <div class="row" style="margin-top:8px;">
+            <label for="ww-preset">Preset</label>
+            <select id="ww-preset" aria-label="Weather preset">
+                <option value="Day_Clear">Day — Clear</option>
+                <option value="Day_Partly_Cloudy">Day — Partly Cloudy</option>
+                <option value="Day_Cloudy">Day — Cloudy</option>
+                <option value="Night_Clear">Night — Clear</option>
+                <option value="Night_Cloudy">Night — Cloudy</option>
+                <option value="Rain">Rain</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="ww-bottom-indicator"></div>
+    <canvas id="riveCanvasBg" aria-hidden="true"></canvas>
+
+    <div id="stage">
+        <canvas id="riveCanvasBg" aria-hidden="true" style="z-index:0;"></canvas>
+        <canvas id="riveCanvasTrees" aria-hidden="true" style="z-index:5;"></canvas>
+        <canvas id="riveCanvasFg" aria-hidden="true" style="z-index:20;"></canvas>
+
+        <div id="overlays" style="z-index:8;">
+            <div id="cloudsContainer"></div>
+            <div id="rainContainer"></div>
+            <div id="starsContainer"></div>
+
+            <div id="ww-weather-card" style="pointer-events:none;">
+                <div class="ww-card-inner" style="background:transparent;">
+                    <div class="ww-top">
+                        <img id="ww-icon" class="ww-weather-icon" src="" alt="weather icon" />
+                        <div class="ww-temp"><span id="ww-tempval">--°</span></div>
+                    </div>
+                    <div class="ww-middle">
+                        <div id="ww-location" class="ww-location">--</div>
+                        <div id="ww-quote" class="ww-quote" style="font-size:13px;opacity:0.95;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- single on-screen peek handle (button) -->
+    <div id="wwPeekHandle" class="ww-peek-handle" title="Open hourly">
+        <button id="wwPeekBtn" aria-label="Open hourly forecast">⤵</button>
+    </div>
+
+    <!-- hourly panel root - hourly module will create markup inside this element if missing -->
+    <div id="hourlyPanel" class="ww-hourly-root"></div>
+    <!-- daily panel root (empty for now — used to test dragging/animations) -->
+    <div id="dailyPanel" class="ww-daily-panel" aria-hidden="true">
+        <button class="ww-panel-close" id="dailyCloseBtn" aria-label="Close daily">✕</button>
+        <div class="placeholder">Daily forecast placeholder — (no daily logic yet)</div>
+    </div>
+
+    <!-- Rive and theme logic preserved (unchanged) -->
+    <script>
+       
+        (function () {
+            const THEMES = {
+                day: { bg: 'assets/rive/Background_Day_Sunny_bg.riv', fg: 'assets/rive/Background_Day_Sunny_fg.riv', bgColor: '#0077F9', trees: null },
+                night: { bg: 'assets/rive/Background_Night_bg.riv', fg: 'assets/rive/Background_Night_fg.riv', bgColor: '#130D8B', trees: null },
+                rain: { bg: 'assets/rive/Background_Rain_bg.riv', fg: 'assets/rive/Background_Rain.riv', bgColor: '#011987', trees: 'assets/rive/Background_Rain_Trees.riv' }
+            };
+            let currentTheme = 'day';
+            let bgInstance = null, fgInstance = null, treesInstance = null;
+            const bgCanvas = document.getElementById('riveCanvasBg');
+            const fgCanvas = document.getElementById('riveCanvasFg');
+            const treesCanvas = document.getElementById('riveCanvasTrees');
+
+            function setSize(canvas) {
+                const dpr = Math.max(window.devicePixelRatio || 1, 1);
+                const w = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+                const h = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+                const wantW = Math.round(w * dpr);
+                const wantH = Math.round(h * dpr);
+                if (canvas.width !== wantW || canvas.height !== wantH) {
+                    canvas.width = wantW;
+                    canvas.height = wantH;
+                }
+                canvas.style.width = `${w}px`;
+                canvas.style.height = `${h}px`;
+            }
+
+            function resizeAll() {
+                try {
+                    setSize(bgCanvas);
+                    setSize(fgCanvas);
+                    if (treesCanvas) setSize(treesCanvas);
+
+                    // 🌟 Tell Rive to update its drawing surfaces immediately!
+                    if (bgInstance && typeof bgInstance.resizeDrawingSurfaceToCanvas === 'function') {
+                        bgInstance.resizeDrawingSurfaceToCanvas();
+                    }
+                    if (fgInstance && typeof fgInstance.resizeDrawingSurfaceToCanvas === 'function') {
+                        fgInstance.resizeDrawingSurfaceToCanvas();
+                    }
+                    if (treesInstance && typeof treesInstance.resizeDrawingSurfaceToCanvas === 'function') {
+                        treesInstance.resizeDrawingSurfaceToCanvas();
+                    }
+                } catch (e) {
+                    console.warn('resizeAll failed', e);
+                }
+            }
+
+            function createInstance(src, canvas, isFg = false) {
+                try {
+                    let resolveLoaded;
+                    const loadedPromise = new Promise((res) => { resolveLoaded = res; });
+
+                    const inst = new rive.Rive({
+                        src,
+                        canvas,
+                        autoplay: true,
+                        // 🌟 Fit and alignment MUST be wrapped inside a rive.Layout object
+                        layout: new rive.Layout({
+                            fit: 'fitWidth',       // 'fitWidth' keeps foreground aligned to bottom width
+                            alignment: 'bottomCenter' // Strings are lowercase camelCase
+                        }),
+                        onLoad: () => { resolveLoaded(true); },
+                        onLoadError: (e) => { console.error('Rive load error', src, e); resolveLoaded(false); }
+                    });
+                    inst._loaded = loadedPromise;
+                    return inst;
+                } catch (e) {
+                    console.error('Rive create error', e);
+                    return null;
+                }
+            }
+
+            function cleanupInstance(instance) { try { if (!instance) return; if (typeof instance.cleanup === 'function') instance.cleanup(); else if (typeof instance.stop === 'function') instance.stop(); } catch (e) { } }
+
+            function initAll(force = false) {
+                resizeAll();
+                if (typeof rive === 'undefined') { setTimeout(() => initAll(force), 80); return; }
+                const theme = THEMES[currentTheme];
+                try {
+                    if (!bgInstance || force) { cleanupInstance(bgInstance); bgInstance = createInstance(theme.bg, bgCanvas, false); }
+                    if (!fgInstance || force) { cleanupInstance(fgInstance); fgInstance = createInstance(theme.fg, fgCanvas, true); }
+                    if (theme.trees) { if (!treesInstance || force) { cleanupInstance(treesInstance); treesInstance = createInstance(theme.trees, treesCanvas, false); } }
+                    else { cleanupInstance(treesInstance); treesInstance = null; if (treesCanvas) treesCanvas.style.opacity = '0'; }
+                } catch (e) { console.error('initAll create instance error', e); }
+            }
+
+            async function setTheme(themeName = 'day') {
+                if (!THEMES[themeName]) return;
+                if (themeName === currentTheme) { document.documentElement.style.setProperty('--ww-bg-color', THEMES[themeName].bgColor); return; }
+                try { cleanupInstance(bgInstance); cleanupInstance(fgInstance); cleanupInstance(treesInstance); } catch (e) { }
+                bgInstance = null; fgInstance = null; treesInstance = null;
+                currentTheme = themeName;
+                document.documentElement.style.setProperty('--ww-bg-color', THEMES[themeName].bgColor);
+                if (treesCanvas) { treesCanvas.style.opacity = THEMES[themeName].trees ? '1' : '0'; treesCanvas.style.transition = 'opacity 0.3s ease'; }
+                initAll(true);
+                const waitFor = [];
+                try { if (bgInstance && bgInstance._loaded) waitFor.push(bgInstance._loaded); if (fgInstance && fgInstance._loaded) waitFor.push(fgInstance._loaded); if (treesInstance && treesInstance._loaded) waitFor.push(treesInstance._loaded); } catch (e) { }
+                const timeout = new Promise((res) => setTimeout(res, 1500));
+                try { await Promise.race([Promise.all(waitFor), timeout]); } catch (e) { }
+            }
+
+            window.__WW_RIVE = { get currentTheme() { return currentTheme; }, get bgInstance() { return bgInstance; }, get fgInstance() { return fgInstance; }, get treesInstance() { return treesInstance; }, setTheme };
+            window.addEventListener('load', () => { initAll(); });
+            window.addEventListener('resize', () => { resizeAll(); setTimeout(() => initAll(false), 120); });
+            window.addEventListener('orientationchange', () => { resizeAll(); setTimeout(() => initAll(true), 300); });
+        })();
+    </script>
+
+    <!-- Robust loader for WeatherWidget & hourly module (keeps behavior compatible) -->
+    <script type="module">
+        (async () => {           
+            // 2) Import effects modules and attach raw modules to window.__EFFECTS
+            // -------------------------
+            try {
+                const effectPaths = {
+                    clouds: './effects/clouds.js',
+                    stars: './effects/stars.js',
+                    rain: './effects/rain.js',
+                    utils: './effects/utils.js',
+                    drones: './effects/drones.js'
+                };
+                window.__EFFECTS = window.__EFFECTS || {};
+
+                // import all effects in parallel
+                const imports = await Promise.all(Object.values(effectPaths).map(p => import(p).catch(e => ({ __import_error: e, path: p }))));
+                const keys = Object.keys(effectPaths);
+                imports.forEach((mod, idx) => {
+                    const name = keys[idx];
+                    if (mod && mod.__import_error) {
+                        console.warn('[loader] effects import error for', effectPaths[name], mod.__import_error);
+                        window.__EFFECTS[name] = null;
+                    } else {
+                        window.__EFFECTS[name] = mod;
+                        console.log('[loader] imported effects module', name, 'keys:', Object.keys(mod));
+                    }
+                });
+
+                // Ensure containers exist and are sized for clouds/stars/rain
+                const visualsParent = document.getElementById('visualsParent') || document.querySelector('.rive-wrapper') || document.body;
+                const ensureContainer = (id, cls) => {
+                    let el = document.getElementById(id) || document.querySelector(cls);
+                    if (!el) {
+                        el = document.createElement('div');
+                        el.id = id;
+                        el.className = (cls && cls.replace('.', '')) || id;
+                        visualsParent.appendChild(el);
+                        console.log('[loader] created', id, 'and appended to visualsParent');
+                    }
+                    // sensible default sizing — will be adjusted on resize below
+                    el.style.position = 'absolute';
+                    el.style.left = '0';
+                    el.style.top = '0';
+                    el.style.width = '100%';
+                    if (!el.style.height || el.style.height === '0px') el.style.height = Math.max(window.innerHeight * 0.5, 400) + 'px';
+                    el.style.pointerEvents = 'none';
+                    el.style.zIndex = 5;
+                    el.style.display = 'block';
+                    return el;
+                };
+
+                ensureContainer('cloudsContainer', '.clouds-layer');
+                ensureContainer('starsCanvas', '.stars-layer');
+                ensureContainer('rainCanvas', '.rain-layer');
+
+                // Size updater — sizes clouds/stars/rain to visualsParent bounding box; debounced-ish
+                const sizeContainers = () => {
+                    const rect = visualsParent.getBoundingClientRect();
+                    ['cloudsContainer', 'starsCanvas', 'rainCanvas'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.style.left = (rect.left || 0) + 'px';
+                        el.style.top = (rect.top || 0) + 'px';
+                        el.style.width = (rect.width || window.innerWidth) + 'px';
+                        el.style.height = (rect.height > 0 ? rect.height : window.innerHeight) + 'px';
+                    });
+                };
+                sizeContainers();
+                window.addEventListener('resize', () => { requestAnimationFrame(sizeContainers); });
+
+                // Build the visuals façade (adapter) based on the real imported module shapes
+                (function buildLazyVisualsFacade() {
+                    const facade = {
+                        _modules: { clouds: null, stars: null, rain: null },
+                        _started: { clouds: false, stars: false, rain: false, initedAll: false },
+
+                        /* Helper: return module.default or module itself */
+                        _getReal(mod) {
+                            if (!mod) return null;
+                            if (mod.default && (typeof mod.default === 'object' || typeof mod.default === 'function')) return mod.default;
+                            return mod;
+                        },
+
+                        /* Clear / reset helpers */
+                        _clearContainer(id) {
+                            try {
+                                const el = document.getElementById(id);
+                                if (el) {
+                                    // remove all children quickly
+                                    while (el.firstChild) el.removeChild(el.firstChild);
+                                }
+                            } catch (e) { console.warn('clearContainer failed', id, e); }
+                        },
+
+                        /* Full reset: stop all modules, clear DOM overlays, reset flags */
+                        resetVisuals() {
+                            if (window.__EFFECTS?.drones) {
+                                window.__EFFECTS.drones.stopDrones();
+                            }
+                            try {
+                                console.log('[visuals.resetVisuals] running reset - stopping clouds/stars/rain/drones and clearing DOM');
+                                // stop clouds
+                                try { if (this._modules.clouds && typeof this._modules.clouds.stopClouds === 'function') this._modules.clouds.stopClouds(); } catch (e) { }
+                                // stop stars
+                                try { if (this._modules.stars && typeof this._modules.stars.stopStars === 'function') this._modules.stars.stopStars(); } catch (e) { }
+                                // stop rain
+                                try { if (this._modules.rain && typeof this._modules.rain.stopRain === 'function') this._modules.rain.stopRain(); } catch (e) { }
+                                // stop drones
+                                try {
+                                    const dm = this._modules.drones || (window.__EFFECTS && window.__EFFECTS.drones) || null;
+                                    if (dm && typeof dm.stopDrones === 'function') dm.stopDrones();
+                                } catch (e) { }
+                                // mark started flags false so lazy init can re-run cleanly where desired
+                                try { this._started.clouds = false; this._started.stars = false; this._started.rain = false; this._started.drones = false; this._started.initedAll = false; } catch (e) { }
+                                console.log('[visuals.resetVisuals] done');
+                                return true;
+                            } catch (e) {
+                                console.warn('[visuals.resetVisuals] failed', e);
+                                return false;
+                            }
+                        },
+
+
+                        lazyInit(name, opts = {}) {
+                            try {
+                                if (this._started[name]) {
+                                    // module already started — still allow reconfiguration calls from callers
+                                    return this._modules[name] || this._getReal(window.__EFFECTS && window.__EFFECTS[name]);
+                                }
+                                const raw = window.__EFFECTS && window.__EFFECTS[name];
+                                const mod = this._getReal(raw);
+                                if (!mod) {
+                                    console.warn('[visuals.lazyInit] module', name, 'not present');
+                                    return null;
+                                }
+                                // attach
+                                this._modules[name] = mod;
+
+                                // Start according to module's public API
+                                if (name === 'clouds') {
+                                    // Cloud module expects startClouds(containerId, coverage)
+                                    const containerId = (opts && opts.containerId) || 'cloudsContainer';
+                                    const coverage = (typeof opts.coverage === 'number') ? opts.coverage : (opts.coverage ? Number(opts.coverage) : 30);
+                                    if (typeof mod.init === 'function') {
+                                        // if it has init, call it (some implementations support both)
+                                        try { mod.init(containerId, coverage); } catch (e) { /* ignore */ }
+                                    }
+                                    if (typeof mod.startClouds === 'function') {
+                                        try { mod.startClouds(containerId, coverage); } catch (e) { console.warn('startClouds threw', e); }
+                                    }
+                                } else if (name === 'stars') {
+                                    const containerId = (opts && opts.containerId) || 'starsContainer';
+                                    if (typeof mod.init === 'function') {
+                                        try { mod.init(containerId); } catch (e) { }
+                                    } else if (typeof mod.startStars === 'function') {
+                                        try { mod.startStars(containerId); } catch (e) { console.warn('startStars threw', e); }
+                                    }
+                                } else if (name === 'rain') {
+                                    const containerId = (opts && opts.containerId) || 'rainContainer';
+                                    if (typeof mod.init === 'function') {
+                                        try { mod.init(containerId); } catch (e) { }
+                                    } else if (typeof mod.startRain === 'function') {
+                                        try { mod.startRain(containerId); } catch (e) { console.warn('startRain threw', e); }
+                                    }
+                                } else {
+                                    // Generic: try init or call as factory
+                                    if (typeof mod.init === 'function') {
+                                        try { mod.init(opts); } catch (e) { console.warn(name, 'init threw', e); }
+                                    } else if (typeof mod === 'function') {
+                                        try { mod(opts); } catch (e) { console.warn(name, 'factory call threw', e); }
+                                    }
+                                }
+
+                                this._started[name] = true;
+                                console.log('[visuals.lazyInit] started', name, 'opts:', opts);
+                                return mod;
+                            } catch (e) {
+                                console.error('[visuals.lazyInit] error starting', name, e);
+                                return null;
+                            }
+                        },
+
+                        /* init all (still available if you want to manually start everything) */
+                        initAll(opts = {}, force = false) {
+                            if (this._started.initedAll && !force) return;
+                            this.lazyInit('clouds', opts.clouds || { containerId: 'cloudsContainer' });
+                            this.lazyInit('stars', opts.stars || { containerId: 'starsContainer' });
+                            this.lazyInit('rain', opts.rain || { containerId: 'rainContainer' });
+                            this._started.initedAll = true;
+                        },
+
+                        /* setTheme passes through to modules if they support it (also updates clouds images) */
+                        setTheme(themeName) {
+                            try {
+                                // Normalize theme name
+                                const theme = (themeName === 'night') ? 'night' : 'day';
+
+                                // 1) existing modules: clouds / stars / rain
+                                try {
+                                    if (this._modules.clouds && typeof this._modules.clouds.setTheme === 'function') this._modules.clouds.setTheme(theme);
+                                    if (this._modules.stars && typeof this._modules.stars.setTheme === 'function') this._modules.stars.setTheme(theme);
+                                    if (this._modules.rain && typeof this._modules.rain.setTheme === 'function') this._modules.rain.setTheme(theme);
+                                } catch (e) { console.warn('[visuals.setTheme] submodule setTheme error', e); }
+
+                                // 2) Drones: lazy-init & ensure correct variant
+                                try {
+                                    // Lazy init the drones module (will start it when we call startDrones)
+                                    const dm = this.lazyInit('drones', { containerId: 'dronesLayerFront' });
+                                    // If lazyInit returned a module reference, update theme and start drones automatically
+                                    if (dm) {
+                                        // call setTheme if available (switches internal image variants)
+                                        if (typeof dm.setTheme === 'function') dm.setTheme(theme);
+                                        // start drones if not already running (startDrones will be idempotent)
+                                        if (typeof dm.startDrones === 'function') {
+                                            // small options: spawnPadPx or other config may be passed here
+                                            dm.startDrones({ theme });
+                                        }
+                                    } else if (window.__EFFECTS && window.__EFFECTS.drones && typeof window.__EFFECTS.drones.setTheme === 'function') {
+                                        // fallback in case lazyInit returned null but global module exists
+                                        try { window.__EFFECTS.drones.setTheme(theme); window.__EFFECTS.drones.startDrones({ theme }); } catch (e) { }
+                                    }
+                                } catch (e) {
+                                    console.warn('[visuals.setTheme] drones integration failed', e);
+                                }
+
+                                // 3) For completeness: ensure stars module respects night/day (start/stop)
+                                try {
+                                    if (theme === 'night') {
+                                        // start stars if we have a stars module and it supports startStars
+                                        if (this._modules.stars && typeof this._modules.stars.startStars === 'function') this._modules.stars.startStars();
+                                    } else {
+                                        // day -> stop stars
+                                        if (this._modules.stars && typeof this._modules.stars.stopStars === 'function') this._modules.stars.stopStars();
+                                    }
+                                } catch (e) { console.warn('[visuals.setTheme] stars start/stop failed', e); }
+
+                                console.log('[visuals.setTheme] applied theme:', theme);
+                            } catch (e) {
+                                console.warn('[visuals.setTheme] error', e);
+                            }
+                        },
+                        /* setCloudCoverage: stop + start clouds with coverage so the clouds.js internal mode works correctly */
+                        setCloudCoverage(cov = 0) {
+                            try {
+                                // normalize
+                                cov = Math.max(0, Math.min(100, Number(cov) || 0));
+                                // stop clouds first to avoid mixing small/big cloud DOMs
+                                const raw = window.__EFFECTS && window.__EFFECTS.clouds;
+                                const cm = (this._modules.clouds || this._getReal(raw));
+                                if (cm && typeof cm.stopClouds === 'function') {
+                                    try { cm.stopClouds('cloudsContainer'); } catch (e) { /* ignore */ }
+                                }
+                                // now start with explicit args (this triggers heavy vs light internally)
+                                const mod = this.lazyInit('clouds', { containerId: 'cloudsContainer', coverage: cov });
+                                // mark started true already done by lazyInit
+                                console.log('[visuals.setCloudCoverage] started clouds with coverage', cov);
+                            } catch (e) {
+                                console.error('[visuals.setCloudCoverage] error', e);
+                            }
+                        },
+
+                        /* setWeatherType: do a full reset first, then start only what's necessary for the given type */
+                        setWeatherType(type, coverage = 0, isNight = false) {
+                            try {
+                                const t = (typeof type === 'string') ? type.toLowerCase() : (type || 'clear');
+                                // always reset first to avoid overlays/duplicates
+                                try { this.resetVisuals(); } catch (e) { console.warn('resetVisuals threw', e); }
+
+                                if (t === 'rain' || /rain|shower|drizzle|thunder|storm/.test(t)) {
+                                    // RAIN: do NOT auto-start clouds. Only start rain visuals.
+                                    this.lazyInit('rain', { containerId: 'rainContainer' });
+                                    // configure rain intensity if API supports it
+                                    const rm = this._modules.rain;
+                                    if (rm && typeof rm.setConfig === 'function') {
+                                        try { rm.setConfig({ intensity: Math.min(1, (coverage / 100) + 0.2) }); } catch (e) { }
+                                    }
+                                    // ensure stars are stopped for daytime rain or general rain
+                                    const sm = this._modules.stars;
+                                    if (sm && typeof sm.stopStars === 'function') try { sm.stopStars(); } catch (e) { }
+                                } else if (t === 'clouds' || /cloud|overcast|cloudy/.test(t)) {
+                                    // CLOUDS: start clouds with coverage (clouds.js decides small vs big)
+                                    this.lazyInit('clouds', { containerId: 'cloudsContainer', coverage: coverage || 60 });
+                                    // Stars: only start at night AND when coverage is low
+                                    if (isNight && coverage < 40) {
+                                        this.lazyInit('stars', { containerId: 'starsContainer' });
+                                        const sm = this._modules.stars;
+                                        if (sm && typeof sm.startStars === 'function') try { sm.startStars('starsContainer'); } catch (e) { }
+                                    } else {
+                                        // daytime or heavy clouds -> ensure stars are stopped.
+                                        const sm = this._modules.stars;
+                                        if (sm && typeof sm.stopStars === 'function') try { sm.stopStars(); } catch (e) { }
+                                    }
+                                } else { // clear/default
+                                    // CLEAR: stop rain/clouds and start stars only if night
+                                    const rm = this._modules.rain;
+                                    if (rm && typeof rm.stopRain === 'function') try { rm.stopRain(); } catch (e) { }
+                                    const cm = this._modules.clouds;
+                                    if (cm && typeof cm.stopClouds === 'function') try { cm.stopClouds('cloudsContainer'); } catch (e) { }
+                                    if (isNight) {
+                                        this.lazyInit('stars', { containerId: 'starsContainer' });
+                                        const sm = this._modules.stars;
+                                        if (sm && typeof sm.startStars === 'function') try { sm.startStars('starsContainer'); } catch (e) { }
+                                    } else {
+                                        const sm = this._modules.stars;
+                                        if (sm && typeof sm.stopStars === 'function') try { sm.stopStars(); } catch (e) { }
+                                    }
+                                }
+                                if (window.__EFFECTS?.drones) {
+                                    const theme = (type.includes("night") ? "night" : "day");
+                                    window.__EFFECTS.drones.setTheme(theme);
+                                    window.__EFFECTS.drones.startDrones();
+                                }
+
+
+                                console.log('[visuals.setWeatherType] applied', t, 'coverage', coverage, 'isNight', !!isNight);
+                            } catch (e) {
+                                console.error('[visuals.setWeatherType] error', e);
+                            }
+                        },
+
+                        /* enable / disable rain */
+                        enableRain(on) {
+                            try {
+                                if (on) {
+                                    this.lazyInit('rain', { containerId: 'rainContainer' });
+                                    const rm = this._modules.rain;
+                                    if (rm && typeof rm.startRain === 'function') try { rm.startRain('rainContainer'); } catch (e) { }
+                                } else {
+                                    const rm = this._modules.rain || this._getReal(window.__EFFECTS && window.__EFFECTS.rain);
+                                    if (rm && typeof rm.stopRain === 'function') try { rm.stopRain(); } catch (e) { }
+                                    if (rm && typeof rm.clearRain === 'function') try { rm.clearRain(); } catch (e) { }
+                                }
+                            } catch (e) { console.warn('[visuals.enableRain] error', e); }
+                        }
+                    };
+
+                    // attach globally
+                    window.visuals = facade;
+                    window.__VISUALS = facade;
+                    window.visualsManager = facade;
+                    window.VISUALS = facade;
+
+                    // provide alias resetVisuals at global level (handy for debugging & presets)
+                    window.resetVisuals = function () { try { return window.visuals.resetVisuals(); } catch (e) { console.warn('global resetVisuals failed', e); } };
+
+                    console.log('[loader] lazy visuals facade attached (updated with resetVisuals). Use visuals.setWeatherType(type,coverage) to start modules.');
+                })();
+
+            } catch (e) {
+                console.warn('[loader] effects import / facade build failed', e);
+            }
+
+            // -------------------------
+            // 3) import hourly chart, weather widget (as before)
+            // -------------------------
+            try {
+                const hcMod = await import('./js/hourlyChart.js?cb=' + Date.now());
+                window._HC = hcMod && (hcMod.default || hcMod);
+                console.log('[loader] hourlyChart imported');
+                if (window._HC && typeof window._HC.setApiKeyPublic === 'function') {
+                    window._HC.setApiKeyPublic(window.WW_CONFIG && window.WW_CONFIG.WEATHER_API_KEY ? window.WW_CONFIG.WEATHER_API_KEY : '');
+                }
+                if (window._HC && typeof window._HC.init === 'function') {
+                    await window._HC.init({ containerId: 'hourlyPanel' }).catch(e => console.warn('[loader] hourly init failed', e));
+                    console.log('[loader] hourlyChart init done');
+                }
+            } catch (e) {
+                console.warn('[loader] import hourlyChart failed', e);
+            }
+
+            try {
+                const wg = await import('./js/weatherWidget.js');
+                // The widget module may export an object, named init, or a default class; handle all
+                try {
+                    if (wg && typeof wg.init === 'function') {
+                        const w = await wg.init({ apiKey: window.WW_CONFIG && window.WW_CONFIG.WEATHER_API_KEY ? window.WW_CONFIG.WEATHER_API_KEY : '', defaultLocation: localStorage.getItem('ww_default_location') || 'Hanoi' });
+                        window.ww = window.ww || {}; window.ww.widget = w || wg.default || null;
+                        console.log('[loader] weatherWidget.init() called and widget created');
+                    } else if (wg && wg.default && typeof wg.default === 'function') {
+                        const W = wg.default;
+                        const inst = new W({ apiKey: window.WW_CONFIG && window.WW_CONFIG.WEATHER_API_KEY ? window.WW_CONFIG.WEATHER_API_KEY : '' });
+                        if (typeof inst.init === 'function') await inst.init({ container: document.getElementById('weatherWidget') });
+                        window.ww = window.ww || {}; window.ww.widget = inst;
+                        console.log('[loader] weatherWidget default class instantiated');
+                    } else {
+                        window.ww = window.ww || {}; window.ww.widget = wg || null;
+                        console.log('[loader] assigned weatherWidget module to window.ww.widget (best-effort)');
+                    }
+                } catch (e) {
+                    console.warn('[loader] weatherWidget init/instantiate failed', e);
+                    window.ww = window.ww || {}; window.ww.widget = wg || null;
+                }
+            } catch (e) {
+                console.warn('[loader] import weatherWidget failed', e);
+                window.ww = window.ww || {}; window.ww.widget = null;
+            }
+
+            console.log('[loader] complete — visuals and widgets wired.');
+        })();
+    </script>
+    <script>
+        (function accessibilityGuard() {
+
+            try {
+                const nodes = Array.from(document.querySelectorAll('[aria-hidden="true"]'));
+                if (nodes.length) {
+                    console.warn('[accessibilityGuard] Found elements with aria-hidden="true" and replacing with inert:', nodes);
+                    nodes.forEach(n => {
+                        try {
+                            n.removeAttribute('aria-hidden');
+                            n.inert = true;
+                        } catch (e) { console.error('[accessibilityGuard] failed to set inert for', n, e); }
+                    });
+                }
+            } catch (e) { console.error('[accessibilityGuard] scan failed', e); }
+
+            try {
+                const origSet = Element.prototype.setAttribute;
+                Element.prototype.setAttribute = function (name, val) {
+                    if (String(name).toLowerCase() === 'aria-hidden') {
+                        console.warn('[accessibilityGuard] aria-hidden set on element (auto-switched to inert):', this, val);
+                        try {
+                            // switch to inert usage instead
+                            if (this.hasAttribute && this.hasAttribute('aria-hidden')) this.removeAttribute('aria-hidden');
+                            this.inert = (String(val) === 'true' || val === true);
+                        } catch (e) { console.error('[accessibilityGuard] inert set failed', e); }
+                        return; // skip actual set
+                    }
+                    return origSet.apply(this, arguments);
+                };
+                // Also guard direct property writes (rare)
+                Object.defineProperty(HTMLElement.prototype, 'ariaHidden', {
+                    set(v) { console.warn('[accessibilityGuard] attempt to set ariaHidden property', this, v); try { this.inert = (v === 'true' || v === true); } catch (e) { } },
+                    get() { return this.getAttribute && this.getAttribute('aria-hidden'); },
+                    configurable: true
+                });
+            } catch (e) { console.warn('[accessibilityGuard] patching setAttribute failed', e); }
+        })();
+    </script>
+    <!-- main app wiring (search, presets, peek handle, fetch & sync) -->
+    <script>
+        // UI element refs
+        const presetSelect = document.getElementById('ww-preset');
+        const searchInput = document.getElementById('ww-search');
+        const suggestions = document.getElementById('ww-suggestions');
+        const iconEl = document.getElementById('ww-icon');
+        const tempEl = document.getElementById('ww-tempval');
+        const locEl = document.getElementById('ww-location');
+        const quoteEl = document.getElementById('ww-quote');
+
+        // applyPreset: called by preset select — uses Rive theme + any other behaviors you had
+        function applyPreset(preset) {
+            try {
+                // ensure visuals cleared before switching
+                if (typeof window.resetVisuals === 'function') {
+                    try { window.resetVisuals(); } catch (e) { console.warn('resetVisuals failed', e); }
+                }
+
+                if (!preset) return;
+                // Map preset keys to Rive theme + visuals instructions
+                let theme = 'day';
+                let visualsType = 'clear';
+                let coverage = 0;
+                if (/Rain/i.test(preset)) { theme = 'rain'; visualsType = 'rain'; coverage = 90; }
+                else if (/Night/i.test(preset)) {
+                    theme = 'night';
+                    if (/Cloudy/i.test(preset)) { visualsType = 'clouds'; coverage = 60; }
+                    else visualsType = 'clear';
+                } else { // Day variants
+                    theme = 'day';
+                    if (/Partly/i.test(preset)) { visualsType = 'clouds'; coverage = 25; }
+                    else if (/Cloudy/i.test(preset)) { visualsType = 'clouds'; coverage = 70; }
+                    else visualsType = 'clear';
+                }
+
+                // 1) Rive theme change
+                try {
+                    if (window.__WW_RIVE && typeof window.__WW_RIVE.setTheme === 'function') {
+                        window.__WW_RIVE.setTheme(theme);
+                    }
+                } catch (e) { console.warn('applyPreset: Rive setTheme failed', e); }
+
+                // 2) visuals change (lazy: will start modules only if needed)
+                const isNightHint = (theme === 'night');
+
+                try {
+                    if (window.visuals && typeof window.visuals.setTheme === 'function') {
+                        window.visuals.setTheme(theme === 'night' ? 'night' : (theme === 'rain' ? 'rain' : 'day'));
+                    }
+                    if (window.visuals && typeof window.visuals.setWeatherType === 'function') {
+                        window.visuals.setWeatherType(visualsType, coverage, isNightHint);
+                    }
+                } catch (e) { console.warn('applyPreset: visuals update failed', e); }
+
+                // Keep select in sync
+                try { if (presetSelect) presetSelect.value = preset; } catch (e) { }
+
+                console.log('applyPreset applied:', preset, { theme, visualsType, coverage });
+            } catch (e) {
+                console.warn('applyPreset failed', e);
+            }
+        }
+
+        window.notifyVisualsAndPresets = function notifyVisualsAndPresets(payload) {
+            try {
+                if (!payload || !payload.current) return console.warn('[notifyVisualsAndPresets] no payload');
+                const cur = payload.current || {};
+                const condText = (cur.condition && cur.condition.text) ? String(cur.condition.text).toLowerCase() : '';
+                const cloudCoverage = (typeof cur.cloud === 'number') ? cur.cloud : (cur.cloud ? Number(cur.cloud) : 0);
+                const isNight = (typeof cur.is_day !== 'undefined') ? (cur.is_day === 0) : false;
+
+                // map condition -> type
+                let type = 'clear';
+                if (/rain|shower|drizzle|thunder|storm/i.test(condText)) type = 'rain';
+                else if (/snow|sleet|flurr|blizzard/i.test(condText)) type = 'snow';
+                else if (/cloud|overcast|cloudy/i.test(condText)) type = 'clouds';
+                else type = 'clear';
+
+                // decide preset string for applyPreset UI: keep same naming as your select options
+                let preset = 'Day_Clear';
+                if (type === 'rain') preset = 'Rain';
+                else if (type === 'clouds') preset = (cloudCoverage < 40 ? 'Day_Partly_Cloudy' : 'Day_Cloudy');
+                // override with night variants if night
+                if (isNight) {
+                    if (type === 'rain') preset = 'Rain';
+                    else if (type === 'clouds') preset = (cloudCoverage < 40 ? 'Night_Cloudy' : 'Night_Cloudy');
+                    else preset = 'Night_Clear';
+                }
+
+                // 1) visuals facade (lazy) - set weather type + coverage
+                try {
+                    // set Rive theme first so visuals know day/night state
+                    if (window.visuals && typeof window.visuals.setTheme === 'function') {
+                        window.visuals.setTheme(isNight ? 'night' : (type === 'rain' ? 'rain' : 'day'));
+                    }
+                    // now call setWeatherType and pass isNight so visuals can decide star behavior
+                    if (window.visuals && typeof window.visuals.setWeatherType === 'function') {
+                        window.visuals.setWeatherType(type, cloudCoverage || 0, isNight);
+                    } else {
+                        console.warn('[notifyVisualsAndPresets] visuals facade missing');
+                    }
+                } catch (e) {
+                    console.warn('[notifyVisualsAndPresets] visuals update error', e);
+                }
+
+                // 2) Rive theme + apply UI preset
+                try {
+                    // set Rive theme
+                    if (window.__WW_RIVE && typeof window.__WW_RIVE.setTheme === 'function') {
+                        window.__WW_RIVE.setTheme(isNight ? 'night' : (type === 'rain' ? 'rain' : 'day'));
+                    }
+                    // call the same applyPreset mapping the UI uses so the preset select remains in sync
+                    if (typeof applyPreset === 'function') {
+                        // delay a tick so UI updates happen after main DOM writes
+                        setTimeout(() => {
+                            try { applyPreset(preset); } catch (e) { console.warn('applyPreset call failed', e); }
+                        }, 20);
+                    }
+                } catch (e) {
+                    console.warn('[notifyVisualsAndPresets] Rive/preset update error', e);
+                }
+
+                // attach last-notified snapshot to window for debugging
+                window.__LAST_VISUALS = { type, coverage: cloudCoverage, preset, isNight, condText };
+                console.log('[notifyVisualsAndPresets] done', window.__LAST_VISUALS);
+                return true;
+            } catch (err) {
+                console.error('[notifyVisualsAndPresets] exception', err);
+                return false;
+            }
+        };
+        // render main card
+        function renderWeatherDisplay(data) {
+            try {
+                const cur = data.current || {};
+                const loc = data.location || {};
+                const icon = cur?.condition?.icon ? (cur.condition.icon.startsWith('//') ? 'https:' + cur.condition.icon : cur.condition.icon) : '';
+                const tempC = typeof cur?.temp_c === 'number' ? cur.temp_c : null;
+                const tempF = typeof cur?.temp_f === 'number' ? cur.temp_f : (tempC !== null ? (tempC * 9 / 5 + 32) : null);
+                const text = cur?.condition?.text || '';
+
+                if (iconEl) iconEl.src = icon || '';
+                if (tempEl) {
+                    const val = (localStorage.getItem('ww_units') === 'F') ? tempF : tempC;
+                    // Store Celsius value for later conversion
+                    tempEl.dataset.tempC = tempC;
+                    tempEl.textContent = (val != null) ? `${Math.round(val)}°` : '--°';
+                }
+                if (locEl) locEl.textContent = loc ? `${loc.name}, ${loc.country}` : '';
+                if (quoteEl) quoteEl.textContent = text || '';
+            } catch (e) { console.warn('renderWeatherDisplay error', e); }
+        }
+
+        // update hourly fallback DOM (only used if inline hourly module missing)
+        function updateHourlyFallback(data) {
+            try {
+                const scrollProxy = document.getElementById('hourlyScrollProxy');
+                const meta = document.getElementById('hourlyMeta');
+                if (!data || !data.forecast || !data.forecast.forecastday) return;
+                if (!scrollProxy) { console.warn('updateHourlyFallback: no scroll proxy element'); return; }
+                // clear & populate next 24 hours starting from current local hour
+                scrollProxy.innerHTML = '';
+                if (meta && data.location) {
+                    const astro = data.forecast.forecastday[0]?.astro || {};
+                    meta.innerHTML = `${data.location.name}, ${data.location.country} — Sunrise ${astro.sunrise || '-'} / Sunset ${astro.sunset || '-'}`;
+                }
+                const localTime = new Date(data.location.localtime);
+                const currentHour = localTime.getHours();
+                const hours = [];
+                let d = 0, h = currentHour;
+                while (hours.length < 24) {
+                    if (!data.forecast.forecastday[d]) break;
+                    hours.push(data.forecast.forecastday[d].hour[h]);
+                    h++;
+                    if (h >= 24) { d++; h = 0; }
+                }
+                const isMetric = localStorage.getItem('ww_units') !== 'F';
+                hours.forEach(hour => {
+                    if (!hour) return;
+                    const time = new Date(hour.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const marker = document.createElement('div');
+                    marker.className = 'hour-marker';
+                    marker.innerHTML = `<div class="time">${time}</div><img src="${hour.condition.icon.startsWith('//') ? 'https:' + hour.condition.icon : hour.condition.icon}" alt="${hour.condition.text}"><div class="temp">${Math.round(isMetric ? hour.temp_c : hour.temp_f)}°</div>`;
+                    scrollProxy.appendChild(marker);
+                });
+            } catch (e) { console.warn('updateHourlyFallback error', e); }
+        }
+
+        // fetchAndSync: talk to WeatherWidget (if present) and instruct hourly module
+        async function fetchAndSync(city) {
+            try {
+                const widgetRef = window.ww && window.ww.widget;
+                let data = null;
+                if (widgetRef && typeof widgetRef.fetchByCity === 'function') {
+                    data = await widgetRef.fetchByCity(city);
+                    renderWeatherDisplay(data);
+                    // notify visuals & presets after we have the payload
+                    try { window.notifyVisualsAndPresets && window.notifyVisualsAndPresets(data); } catch (e) { console.warn('notifyVisualsAndPresets failed', e); }
+                    // attempt inline hourly first
+                    if (window._HC && typeof window._HC.fetchAndShowByCity === 'function') {
+                        try { await window._HC.fetchAndShowByCity(city); } catch (e) { console.warn('inline hourly fetch failed', e); updateHourlyFallback(data); }
+                    } else {
+                        // fallback direct DOM update
+                        updateHourlyFallback(data);
+                    }
+                } else {
+                    // widget not present: try using hourly module's fetch
+                    if (window._HC && typeof window._HC.fetchAndShowByCity === 'function') {
+                        try {
+                            await window._HC.fetchAndShowByCity(city);
+                            // inline module typically updates main card via its integration if available
+                        } catch (e) { console.warn('hourly-only fetch failed', e); }
+                    } else {
+                        console.warn('No widget or hourly module available for fetch');
+                    }
+                }
+                return data;
+            } catch (e) {
+                console.error('fetchAndSync error', e);
+                return null;
+            }
+        }
+
+        // wire preset select
+        if (presetSelect) {
+            presetSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
+                applyPreset(val);
+            });
+        }
+        // search input wiring with suggestions (uses window.ww.widget.searchCities if available)
+        if (searchInput) {
+            let _deb = null;
+            searchInput.addEventListener('input', (ev) => {
+                const q = ev.target.value.trim();
+                if (_deb) clearTimeout(_deb);
+                if (!q) { suggestions.classList.remove('show'); suggestions.innerHTML = ''; return; }
+                _deb = setTimeout(async () => {
+                    const widgetRef = window.ww && window.ww.widget;
+                    if (!widgetRef || typeof widgetRef.searchCities !== 'function') { console.warn('searchCities not available on widget'); return; }
+                    try {
+                        const list = await widgetRef.searchCities(q);
+                        suggestions.innerHTML = '';
+                        if (!list || list.length === 0) { suggestions.classList.remove('show'); return; }
+                        list.forEach((it) => {
+                            const div = document.createElement('div');
+                            div.className = 'ww-suggestion';
+                            const label = `${it.name}${it.region ? ', ' + it.region : ''}${it.country ? ', ' + it.country : ''}`;
+                            div.textContent = label;
+                            div.addEventListener('click', async () => {
+                                searchInput.value = label;
+                                suggestions.classList.remove('show');
+                                await fetchAndSync(label);
+                            });
+                            suggestions.appendChild(div);
+                        });
+                        suggestions.classList.add('show');
+                    } catch (e) { console.error('searchCities error', e); suggestions.classList.remove('show'); }
+                }, 220);
+            });
+
+            searchInput.addEventListener('keydown', (ev) => {
+                const items = Array.from(suggestions.querySelectorAll('.ww-suggestion'));
+                if (!items.length) return;
+                if (ev.key === 'Enter') { ev.preventDefault(); const active = items.find(it => it.classList.contains('active')); if (active) active.click(); else items[0].click(); suggestions.classList.remove('show'); }
+                else if (ev.key === 'Escape') suggestions.classList.remove('show');
+            });
+
+            document.addEventListener('click', (ev) => {
+                if (!document.getElementById('controls')?.contains(ev.target)) suggestions.classList.remove('show');
+            });
+        }
+
+        // init default (call fetch once widget or hourly is ready)
+        (async function initDefault() {
+            try {
+                const defaultLoc = localStorage.getItem('ww_default_location') || 'Hanoi';
+                // if widget present and has fetchByCity, call it
+                if (window.ww && window.ww.widget && typeof window.ww.widget.fetchByCity === 'function') {
+                    await fetchAndSync(defaultLoc);
+                } else if (window._HC && typeof window._HC.fetchAndShowByCity === 'function') {
+                    try { await window._HC.fetchAndShowByCity(defaultLoc); } catch (e) { console.warn('hourly inline initial fetch failed', e); }
+                }
+            } catch (e) { /* ignore */ }
+        })();
+
+        window.ww = window.ww || {};
+        window.ww.fetchWeather = fetchAndSync;
+
+        // Peek handle wiring (single on-screen button) - links to panel and inline hourly module when available
+        // Peek handle + drag behavior: opens/closes hourly + daily panels together, applies blur when fully open
+        (function setupPeekSimpleThreeState() {
+            const peekHandle = document.getElementById('wwPeekHandle');
+            const peekBtn = document.getElementById('wwPeekBtn');
+            const panelRoot = document.getElementById('hourlyPanel');
+            const dailyPanel = document.getElementById('dailyPanel');
+
+            if (!peekHandle || !peekBtn || !panelRoot || !dailyPanel) {
+                console.warn('[peek] elements missing; skipping peek setup');
+                return;
+            }
+
+            // ensure hourly inner panel exists (fallback)
+            function ensureHourlyPanelContents() {
+                let panel = panelRoot.querySelector('.ww-hourly-panel');
+                if (!panel) {
+                    panel = document.createElement('div');
+                    panel.className = 'ww-hourly-panel';
+                    panel.innerHTML = `
+        <button class="ww-panel-close" id="hourlyCloseBtn" aria-label="Close hourly">✕</button>
+        <div class="ww-hourly-inner">
+          <div id="hourlyMeta" class="hourly-meta"></div>
+          <div id="hourlyScrollProxy" class="ww-hourly-scrollproxy" tabindex="0"></div>
+        </div>
+      `;
+                    try { panel.inert = true; } catch (e) { }
+                    panelRoot.appendChild(panel);
+                }
+                return panel;
+            }
+            const hourlyPanel = ensureHourlyPanelContents();
+            const hourlyCloseBtn = hourlyPanel.querySelector('#hourlyCloseBtn');
+            const dailyCloseBtn = document.getElementById('dailyCloseBtn');
+
+            // helper helpers
+            function hourlyOpenY() {
+                return Math.round(window.innerHeight * 0.06 + 40);
+            }
+            function hourlyClosedY() {
+                return -Math.round(hourlyPanel.getBoundingClientRect().height || (window.innerHeight * 0.30));
+            }
+            function dailyClosedY() {
+                return -Math.round(dailyPanel.getBoundingClientRect().height || (window.innerHeight * 0.30));
+            }
+            function dailyOpenYAboveHourly() {
+                // compute the Y so daily is positioned above hourly in the stacked layout (before delta shift)
+                const hOpen = hourlyOpenY();
+                const dailyH = Math.round(dailyPanel.getBoundingClientRect().height || (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hourly-height') || (window.innerHeight * 0.30))));
+                const gap = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--daily-gap')) || 12;
+                return hOpen - dailyH - gap;
+            }
+
+            // set transforms/inert
+            function setPanelTransforms(hourlyY, dailyY) {
+                hourlyPanel.style.transform = `translate(-50%, ${hourlyY}px)`;
+                dailyPanel.style.transform = `translate(-50%, ${dailyY}px)`;
+                try { hourlyPanel.inert = !(hourlyY > hourlyClosedY()); } catch (e) { }
+                try { dailyPanel.inert = !(dailyY > dailyClosedY()); } catch (e) { }
+            }
+
+            // place peek below the lower of the two panels (after layout finishes)
+            function placePeekBelowLowerPanel(spacing = 8) {
+                try {
+                    const hourlyRect = hourlyPanel.getBoundingClientRect();
+                    const dailyRect = dailyPanel.getBoundingClientRect();
+                    const lowerBottom = Math.max(hourlyRect.bottom, dailyRect.bottom);
+                    const topPx = Math.max(lowerBottom + spacing, 10);
+                    peekHandle.style.top = `${Math.round(topPx)}px`;
+                } catch (e) { console.warn('placePeekBelowLowerPanel failed', e); }
+            }
+            function resetPeekPosition() { peekHandle.style.top = '10px'; }
+
+            // blur targets
+            const blurTargets = Array.from(document.querySelectorAll('#riveCanvasBg,#riveCanvasTrees,#riveCanvasFg,#stage,#ww-weather-card'));
+            function applyBlur(yes) { blurTargets.forEach(el => { if (!el) return; if (yes) el.classList.add('ww-blurred'); else el.classList.remove('ww-blurred'); }); }
+
+            // states: 0 closed, 1 hourly open, 2 both open
+            let state = 0;
+
+            const closedHourlyY = hourlyClosedY();
+            const closedDailyY = dailyClosedY();
+            setPanelTransforms(closedHourlyY, closedDailyY);
+            resetPeekPosition();
+            applyBlur(false);
+
+            // open hourly only
+            function openHourlyOnly() {
+                const hOpen = hourlyOpenY();
+                setPanelTransforms(hOpen, closedDailyY);
+                setTimeout(() => placePeekBelowLowerPanel(8), 24);
+                peekHandle.classList.add('attached');
+                peekHandle.classList.remove('rotated');
+                try { hourlyPanel.inert = false; dailyPanel.inert = true; } catch (e) { }
+                applyBlur(false);
+                state = 1;
+            }
+
+            // open both but drop both panels DOWN by dailyHeight (so they visually pull down together)
+            function openHourlyAndDaily() {
+                const hOpen = hourlyOpenY();
+                const dOpen = dailyOpenYAboveHourly();
+                // compute delta = daily panel height we will use to push both panels down
+                const dailyH = Math.round(dailyPanel.getBoundingClientRect().height || (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hourly-height') || (window.innerHeight * 0.30))));
+                const delta = dailyH;
+                // final positions: both shifted down by delta
+                const finalHourlyY = hOpen + delta;
+                const finalDailyY = dOpen + delta;
+                setPanelTransforms(finalHourlyY, finalDailyY);
+                setTimeout(() => placePeekBelowLowerPanel(8), 24);
+                peekHandle.classList.add('attached');
+                peekHandle.classList.add('rotated');
+                try { hourlyPanel.inert = false; dailyPanel.inert = false; } catch (e) { }
+                applyBlur(true);
+                state = 2;
+            }
+
+            function closeBoth() {
+                setPanelTransforms(closedHourlyY, closedDailyY);
+                resetPeekPosition();
+                peekHandle.classList.remove('attached');
+                peekHandle.classList.remove('rotated');
+                try { hourlyPanel.inert = true; dailyPanel.inert = true; } catch (e) { }
+                applyBlur(false);
+                state = 0;
+            }
+
+            // cycle
+            peekBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                if (state === 0) openHourlyOnly();
+                else if (state === 1) openHourlyAndDaily();
+                else closeBoth();
+            });
+
+            // panel close handlers
+            if (hourlyCloseBtn) hourlyCloseBtn.addEventListener('click', (e) => { e.preventDefault(); closeBoth(); });
+            if (dailyCloseBtn) dailyCloseBtn.addEventListener('click', (e) => { e.preventDefault(); closeBoth(); });
+
+            // reposition on resize
+            window.addEventListener('resize', () => {
+                if (state === 1) { setTimeout(() => { setPanelTransforms(hourlyOpenY(), closedDailyY); placePeekBelowLowerPanel(8); }, 24); }
+                else if (state === 2) { setTimeout(() => { const dailyH = Math.round(dailyPanel.getBoundingClientRect().height || (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hourly-height') || (window.innerHeight * 0.30)))); setPanelTransforms(hourlyOpenY() + dailyH, dailyOpenYAboveHourly() + dailyH); placePeekBelowLowerPanel(8); }, 24); }
+            });
+
+            // debug helper
+            window.peekState = () => ({ state, hourlyRect: hourlyPanel.getBoundingClientRect(), dailyRect: dailyPanel.getBoundingClientRect(), peekTop: peekHandle.style.top });
+           
+        })();
+
+    </script>
+    <script type="module">
+        /* Settings + Firebase logic*/
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+        import { getStorage, ref as sref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+
+        /*CONFIG */
+        const firebaseConfig = {
+            apiKey: "AIzaSyAcckQ5yJK6xoc1T2WxJMpgWZnN8cW1cSM",
+            authDomain: "test-c58a0.firebaseapp.com",
+            projectId: "test-c58a0",
+            storageBucket: "test-c58a0.appspot.com",
+            messagingSenderId: "876722166559",
+            appId: "1:876722166559:web:959f215a4b44b735baee2a",
+            measurementId: "G-ZD59YEERMY"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        const provider = new GoogleAuthProvider();
+
+        /* ---------- DOM refs ---------- */
+        const settingsBtn = document.getElementById('ww-settings-btn');
+        const settingsPanel = document.getElementById('ww-settings-panel');
+        const loginBtn = document.getElementById('ww-login-btn');
+        const logoutBtn = document.getElementById('ww-logout-btn');
+        const profileName = document.getElementById('ww-profile-name');
+        const profileEmail = document.getElementById('ww-profile-email');
+        const pfpImg = document.getElementById('ww-pfp');
+        const pfpWrap = document.getElementById('ww-pfp-wrap');
+        const pfpOverlay = document.getElementById('ww-pfp-overlay');
+        const unitsToggle = document.getElementById('ww-units-toggle');
+        const unitsLabel = document.getElementById('ww-units-label');
+        const historyList = document.getElementById('ww-history-list');
+
+        let currentUser = null;
+        let userDocRef = null;
+
+        /* ---------- UI: toggle settings panel ---------- */
+        settingsBtn && settingsBtn.addEventListener('click', () => {
+            const open = settingsPanel.classList.toggle('ww-open');
+            settingsPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        });
+
+        /* ---------- Guest initial state + localStorage fallbacks ---------- */
+        function setGuestUI() {
+            currentUser = null;
+            userDocRef = null;
+            profileName.textContent = 'Guest';
+            profileEmail.textContent = 'Not signed in';
+            pfpImg.src = pfpImg.src || 'https://via.placeholder.com/150/888/fff?text=Guest';
+            unitsToggle.checked = (localStorage.getItem('ww_units') === 'F');
+            unitsLabel.textContent = unitsToggle.checked ? '°F' : '°C';
+            renderHistoryList(getLocalHistory()); // show local history when guest
+        }
+
+        /* ---------- History helpers (localStorage + firestore) ---------- */
+        function getLocalHistory() {
+            try { return JSON.parse(localStorage.getItem('ww_history') || '[]'); } catch (e) { return []; }
+        }
+        function setLocalHistory(arr) { localStorage.setItem('ww_history', JSON.stringify(arr || [])); }
+
+        /* add a search string to history (both local and remote when logged in) */
+        async function pushHistoryItem(q) {
+            if (!q) return;
+            // local
+            const hist = getLocalHistory();
+            hist.unshift(q);
+            // trim duplicates
+            const dedup = Array.from(new Set(hist)).slice(0, 30);
+            setLocalHistory(dedup);
+            renderHistoryList(dedup);
+            // firestore
+            if (currentUser && userDocRef) {
+                try {
+                    await updateDoc(userDocRef, { history: arrayUnion(q) });
+                } catch (e) {
+                    // if doc missing, create it instead
+                    try { await setDoc(userDocRef, { history: dedup, lastLocation: q, units: localStorage.getItem('ww_units') || 'C' }, { merge: true }); } catch (e2) { console.warn('pushHistory update failed', e2); }
+                }
+            }
+        }
+
+        function renderHistoryList(list) {
+            if (!historyList) return;
+            historyList.innerHTML = '';
+            (list || []).slice(0, 20).forEach(it => {
+                const el = document.createElement('div');
+                el.className = 'ww-history-item';
+                el.textContent = it;
+                el.addEventListener('click', () => {
+                    // call global fetch function if available
+                    if (window.ww && typeof window.ww.fetchWeather === 'function') {
+                        window.ww.fetchWeather(it);
+                    } else if (window._HC && typeof window._HC.fetchAndShowByCity === 'function') {
+                        window._HC.fetchAndShowByCity(it);
+                    } else {
+                        console.warn('No fetch function available to handle history click');
+                    }
+                });
+                historyList.appendChild(el);
+            });
+        }
+
+        /* ---------- Units toggle behavior ---------- */
+        function setUnits(unit) {
+            // store locally & in firestore (when logged)
+            localStorage.setItem('ww_units', unit);
+            unitsLabel.textContent = unit === 'F' ? '°F' : '°C';
+            // also call a global helper if present to re-render temperatures
+            if (window.updateGlobalUnits && typeof window.updateGlobalUnits === 'function') {
+                window.updateGlobalUnits(unit);
+            } else {
+                // fallback: attempt to convert key visible elements
+                updateVisibleTemps(unit);
+            }
+            // save to firestore
+            if (currentUser && userDocRef) {
+                setDoc(userDocRef, { units: unit }, { merge: true }).catch(e => console.warn('save units failed', e));
+            }
+        }
+        unitsToggle && unitsToggle.addEventListener('change', (ev) => {
+            const unit = ev.target.checked ? 'F' : 'C';
+            setUnits(unit);
+        });
+
+        /* naive visible temps updater (fallback) */
+        function updateVisibleTemps(toUnit) {
+            try {
+                const isToF = (toUnit === 'F');
+                // main value
+                const mainTemp = document.getElementById('ww-tempval');
+                if (mainTemp) {
+                    const v = parseFloat(mainTemp.dataset.tempC || mainTemp.textContent.replace(/[^\d\-\.]/g, '')) || null;
+                    if (v !== null) mainTemp.textContent = Math.round(isToF ? (v * 9 / 5 + 32) : v) + '°';
+                }
+                // hourly temp rects and DOM markers
+                document.querySelectorAll('.ww-temp-text, .hour-marker .temp, .ww-temp-text-volatile').forEach(el => {
+                    // priority: read data-temp-c attribute if present, else try parse
+                    const c = el.dataset && el.dataset.tempC ? Number(el.dataset.tempC) : Number((el.textContent || '').replace(/[^\d\-\.]/g, '')) || null;
+                    if (c !== null && !Number.isNaN(c)) {
+                        el.textContent = Math.round(isToF ? (c * 9 / 5 + 32) : c) + '°';
+                    }
+                });
+            } catch (e) { console.warn('updateVisibleTemps failed', e); }
+        }
+
+        /* ---------- Profile picture upload ---------- */
+        pfpWrap && pfpWrap.addEventListener('click', async () => {
+            // create file input
+            const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
+            input.onchange = async () => {
+                const file = input.files && input.files[0];
+                if (!file) return;
+                try {
+                    // show quick fade animation
+                    pfpImg.style.opacity = '0.45';
+                    // upload to storage under 'profiles/{uid}/pfp-{timestamp}.jpg' or localStorage fallback
+                    if (!currentUser) {
+                        // guest: fallback to local preview only
+                        const url = URL.createObjectURL(file);
+                        pfpImg.src = url;
+                        pfpImg.style.opacity = '1';
+                        return;
+                    }
+                    const path = `profiles/${currentUser.uid}/pfp-${Date.now()}`;
+                    const ref = sref(storage, path);
+                    const snap = await uploadBytes(ref, file);
+                    const url = await getDownloadURL(ref);
+                    // update firebase auth profile and firestore doc
+                    await updateProfile(auth.currentUser, { photoURL: url }).catch(() => { });
+                    await setDoc(userDocRef, { photoURL: url }, { merge: true });
+                    pfpImg.src = url;
+                    pfpImg.style.opacity = '1';
+                } catch (e) {
+                    console.error('pfp upload failed', e);
+                    pfpImg.style.opacity = '1';
+                    alert('Profile upload failed');
+                }
+            };
+            input.click();
+        });
+
+        /* ---------- Login / Logout ---------- */
+        loginBtn && loginBtn.addEventListener('click', async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                // result.user available, onAuthStateChanged handler will run
+                console.log('Signed in', result.user.uid);
+            } catch (e) {
+                console.error('Google sign-in failed', e);
+                alert('Login failed: ' + (e && e.message ? e.message : e));
+            }
+        });
+        logoutBtn && logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                // clear current user UI
+                setGuestUI();
+                // reset visuals to guest defaults (if available)
+                if (window.resetVisuals && typeof window.resetVisuals === 'function') window.resetVisuals();
+            } catch (e) { console.warn('signout failed', e); }
+        });
+
+        /* ---------- Auth state changes: take action ---------- */
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                userDocRef = doc(db, 'users', user.uid);
+                // read user doc
+                const snap = await getDoc(userDocRef).catch(() => null);
+                const docData = snap && snap.exists() ? snap.data() : null;
+                // set UI
+                profileName.textContent = user.displayName || (docData && docData.name) || 'User';
+                profileEmail.textContent = user.email || '';
+                pfpImg.src = user.photoURL || (docData && docData.photoURL) || pfpImg.src || 'https://via.placeholder.com/150/888/fff?text=U';
+                // restore units
+                const prefUnits = (docData && docData.units) || localStorage.getItem('ww_units') || 'C';
+                unitsToggle.checked = (prefUnits === 'F');
+                unitsLabel.textContent = prefUnits === 'F' ? '°F' : '°C';
+                // restore history + lastLocation
+                const hist = (docData && docData.history) ? docData.history.slice().reverse() : getLocalHistory();
+                renderHistoryList(hist || []);
+                // store last location locally
+                if (docData && docData.lastLocation) localStorage.setItem('ww_default_location', docData.lastLocation);
+                // re-apply preferences app-wide
+                setUnits(prefUnits === 'F' ? 'F' : 'C');
+                // preserve last search and re-open last location on sign-in
+                const lastLoc = docData && docData.lastLocation ? docData.lastLocation : localStorage.getItem('ww_default_location');
+                if (lastLoc) {
+                    // trigger a re-fetch and restore UI to where user left off
+                    if (window.ww && typeof window.ww.fetchWeather === 'function') window.ww.fetchWeather(lastLoc);
+                    else if (window._HC && typeof window._HC.fetchAndShowByCity === 'function') window._HC.fetchAndShowByCity(lastLoc);
+                }
+                console.log('User signed-in and prefs restored', user.uid);
+            } else {
+                // logged out -> guest
+                setGuestUI();
+                console.log('User signed out, now guest');
+            }
+        });
+
+        /* ---------- Expose a small API for other modules ---------- */
+        window.WW_SETTINGS = {
+            pushHistoryItem,
+            getLocalHistory,
+            setUnits,
+            setGuestUI,
+            currentUser: () => currentUser
+        };
+
+        /* ---------- initialize guest UI on load ---------- */
+        setGuestUI();
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,19 @@
+<svg width="1676" height="466" viewBox="0 0 1676 466" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- Border lines with IDs -->
+  <line id="border_top" x1="40" y1="20" x2="1636" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+  <line id="border_bottom" x1="40" y1="446" x2="1636" y2="446" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>
+  
+  <!-- Chart groups -->
+  <g id="chartPoints"></g>
+  <g id="chartIcons"></g>
+  <path id="chartLine" stroke="white" stroke-width="2" fill="none"/>
+  <g id="chartMarkers"></g>
+
+  <!-- Temperature gradient definition -->
+  <defs>
+    <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF69B4"/>
+      <stop offset="100%" stop-color="#0000FF"/>
+    </linearGradient>
+  </defs>
+</svg>

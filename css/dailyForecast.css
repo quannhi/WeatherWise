@@ -1,0 +1,67 @@
+.daily-panel {
+    padding: 16px;
+    color: #fff;
+    font-family: "Inter", sans-serif;
+}
+
+.daily-forecast-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.daily-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+}
+
+.daily-day {
+    width: 40px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.daily-icon {
+    width: 26px;
+    height: 26px;
+}
+
+.daily-bar-wrap {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    position: relative;
+    margin: 0 8px;
+    overflow: hidden;
+}
+
+.daily-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #00c6ff, #ff6f61, #ff3d00);
+    transition: width 0.3s ease;
+}
+
+.daily-temp {
+    font-size: 14px;
+}
+
+.daily-temp.min {
+    width: 32px;
+    text-align: right;
+    opacity: 0.8;
+}
+
+.daily-temp.max {
+    width: 32px;
+    text-align: left;
+    font-weight: bold;
+}

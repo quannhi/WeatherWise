@@ -1,0 +1,403 @@
+/* === Append this to css/effects.css (Weather card + navbar styles) === */
+
+/* Weather card */
+#ww-weather-card {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    pointer-events: auto;
+    user-select: none;
+    width: min(520px, 86vw);
+    max-width: 520px;
+    color: white;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    text-align: center;
+    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
+}
+
+/* Remove card box visuals (unobtrusive icon + text) */
+#ww-weather-card .ww-card-inner {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+#ww-weather-card {
+    pointer-events: none !important;
+}
+
+#ww-weather-card .ww-btn {
+    pointer-events: auto;
+}
+
+/* kept if any interactive button exists */
+
+/* Autocomplete suggestions already styled inline in index.html, but these are fallback rules */
+.ww-suggestions {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+.ww-suggestion {
+    user-select: none;
+}
+
+
+
+#ww-weather-card .ww-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+}
+
+#ww-weather-card .ww-weather-icon {
+    width: 54px;
+    height: 54px;
+    opacity: 0.95;
+}
+
+#ww-weather-card .ww-temp {
+    text-align: left;
+}
+
+#ww-weather-card .ww-temp-value {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+#ww-weather-card .ww-condition {
+    font-size: 13px;
+    opacity: 0.92;
+}
+
+#ww-weather-card .ww-middle {
+    margin-top: 4px;
+    margin-bottom: 6px;
+}
+
+#ww-weather-card .ww-location {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+#ww-weather-card .ww-quote {
+    font-size: 13px;
+    margin-top: 6px;
+    opacity: 0.95;
+}
+#ww-weather-card .ww-location,
+.ww-weather-icon,
+.ww-condition,
+.ww-quote {
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+#ww-weather-card .ww-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    gap: 8px;
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+#ww-weather-card .ww-btn {
+    appearance: none;
+    border: none;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#ww-weather-card .ww-btn:hover {
+    background: rgba(255, 255, 255, 0.11);
+}
+
+/* Navbar (settings) - if you also have inline styles in index.html, these are fallbacks */
+#ww-navbar {
+    position: fixed;
+    right: 12px;
+    top: 12px;
+    z-index: 999999;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#ww-navbar .nav-btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: white;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: none;
+    backdrop-filter: blur(6px);
+}
+
+#ww-navbar .nav-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+#ww-settings {
+    position: absolute;
+    right: 0;
+    top: 44px;
+    width: 220px;
+    display: none;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 10px;
+    padding: 8px;
+    color: white;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+#ww-settings.show {
+    display: block;
+}
+
+#ww-settings label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 6px 4px;
+    font-size: 13px;
+}
+
+#ww-settings .switch {
+    cursor: pointer;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+}
+
+/* Basic overlay helpers */
+.ww-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* keep your cloud classes untouched (these will be used by existing clouds module) */
+.ww-cloud {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform, left, opacity;
+}
+
+.ww-cloud-small {
+    transition: opacity 800ms ease;
+}
+
+
+.clouds-layer,
+#cloudsContainer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100vh;
+    /* defaults to viewport height; adjusted by JS if needed */
+    pointer-events: none;
+    z-index: 5;
+    /* adjust if you need clouds above/below other layers */
+    display: block;
+    will-change: transform, opacity;
+}
+.ww-settings-panel {
+    position: fixed;
+    right: 12px;
+    top: 56px;
+    width: 320px;
+    max-width: calc(100vw - 40px);
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.45));
+    border-radius: 12px;
+    padding: 12px;
+    z-index: 999999;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transform: translateY(-16px) scaleY(0.98);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 320ms ease, opacity 280ms ease;
+}
+
+/* visible */
+.ww-settings-panel.ww-open {
+    transform: translateY(0) scaleY(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* inner layout */
+.ww-settings-inner {
+    color: #fff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto;
+}
+
+.ww-settings-top {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ww-profile {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex: 1;
+}
+
+.ww-pfp-wrap {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+}
+
+.ww-pfp-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 220ms ease;
+}
+
+.ww-pfp-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transition: opacity 180ms ease;
+    font-size: 13px;
+}
+
+.ww-pfp-wrap:hover .ww-pfp-overlay {
+    opacity: 1;
+}
+
+/* profile meta */
+.ww-profile-meta {
+    display: flex;
+    flex-direction: column;
+}
+
+#ww-profile-name {
+    font-weight: 700;
+}
+
+#ww-profile-email {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* units toggle */
+.ww-settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ww-switch {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 26px;
+}
+
+.ww-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ww-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #444;
+    border-radius: 26px;
+    transition: 0.2s;
+}
+
+.ww-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+
+.ww-switch input:checked+.ww-switch-slider {
+    background: #1e90ff;
+}
+
+.ww-switch input:checked+.ww-switch-slider:before {
+    transform: translateX(20px);
+}
+
+/* body */
+.ww-settings-body {
+    display: flex;
+    gap: 8px;
+    flex-direction: column;
+    margin-top: 8px;
+}
+
+.ww-btn {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    text-align: center;
+}
+
+.ww-btn-secondary {
+    background: rgba(255, 255, 255, 0.02);
+    opacity: 0.9;
+}
+
+/* recent searches list */
+.ww-history-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow: auto;
+}
+
+.ww-history-item {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.muted {
+    opacity: 0.75;
+    font-size: 13px;
+}
