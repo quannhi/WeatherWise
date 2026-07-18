@@ -186,9 +186,12 @@
         #controls .row {
             display: flex;
             gap: 8px;
-            align-items: center
+            align-items: center;
         }
-
+        #controls .row option {
+            color:black;
+        }
+     
         #controls input,
         #controls select {
             padding: 6px 8px;
@@ -224,7 +227,7 @@
             color: white;
             border-bottom: 1px solid rgba(255, 255, 255, 0.03)
         }
-
+        
         #hourlyIframe {
             display: none
         }
@@ -524,7 +527,7 @@
                     });
                 };
                 sizeContainers();
-                window.addEventListener('resize', () => { requestAnimationFrame(sizeContainers); });
+                window.addEventListener('resize', () => { requestAnimationFrame(sizeContainers); });             
 
                 // Build the visuals façade (adapter) based on the real imported module shapes
                 (function buildLazyVisualsFacade() {
